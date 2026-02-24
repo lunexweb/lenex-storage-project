@@ -1,9 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow, parseISO } from "date-fns";
-import { Search, Clock, FileText, FolderOpen, User, Plus, Folder, Cloud, Share2, Upload, Database, Loader2 } from "lucide-react";
+import { Search, Clock, FileText, FolderOpen, User, Plus, Folder, Cloud, Share2, Upload, Database, Loader2, FileEdit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useData } from "@/context/DataContext";
+import type { FormSubmissionRow } from "@/context/DataContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { getFileStats, type ClientFile, type Project } from "@/data/mockData";
@@ -23,7 +24,7 @@ const today = () =>
   new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
 export default function DashboardPage() {
-  const { files, activities, loading } = useData();
+  const { files, activities, templates, loading, getFormSubmissions } = useData();
   const { user } = useAuth();
   const { profile } = useSettings();
   const displayName = profile.businessNameOrUserName?.trim() || user?.name || "";
@@ -33,7 +34,32 @@ export default function DashboardPage() {
   const [showResults, setShowResults] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [pendingSubmissions, setPendingSubmissions] = useState<{ templateId: string; templateName: string; submission: FormSubmissionRow }[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!templates.length) return;
+    const shareable = templates.filter((t) => t.isShareable);
+    if (!shareable.length) {
+      setPendingSubmissions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const all: { templateId: string; templateName: string; submission: FormSubmissionRow }[] = [];
+      for (const t of shareable) {
+        try {
+          const list = await getFormSubmissions(t.id);
+          const pending = list.filter((s) => s.status === "pending");
+          pending.forEach((s) => all.push({ templateId: t.id, templateName: t.name, submission: s }));
+        } catch {
+          // ignore
+        }
+      }
+      if (!cancelled) setPendingSubmissions(all);
+    })();
+    return () => { cancelled = true; };
+  }, [templates, getFormSubmissions]);
 
   const stats = useMemo(() => getFileStats(files ?? []), [files]);
   const totalStorageBytes = useMemo(() => calculateTotalStorageBytes(files ?? []), [files]);
@@ -316,6 +342,36 @@ export default function DashboardPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {pendingSubmissions.length > 0 && (
+        <div className="bg-card rounded-xl border border-border overflow-hidden mt-6">
+          <div className="px-4 sm:px-5 py-4 border-b border-border flex items-center gap-2">
+            <FileEdit className="h-4 w-4 text-muted-foreground shrink-0" />
+            <h2 className="text-base font-semibold text-foreground">Form Submissions</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {pendingSubmissions.map(({ templateId, templateName, submission }) => (
+              <div
+                key={submission.id}
+                className="px-4 py-3 flex flex-wrap items-center gap-3 min-h-[44px]"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{templateName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {submission.submitter_name || submission.submitter_email || "—"} · {new Date(submission.submitted_at).toLocaleString()}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => navigate("/templates", { state: { openSubmissionsForTemplateId: templateId } })}
+                >
+                  Import
+                </Button>
+              </div>
+            ))}
           </div>
         </div>
       )}

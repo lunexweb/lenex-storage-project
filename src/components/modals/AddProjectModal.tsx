@@ -35,9 +35,12 @@ export default function AddProjectModal({ fileId, onClose }: AddProjectModalProp
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
         : `f-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    const templateFields = (tmpl?.fields ?? []).map((fname) => ({
+    const dataFields = (tmpl?.fields ?? []).filter(
+      (f) => f.type !== "divider" && f.type !== "heading"
+    );
+    const templateFields = dataFields.map((f) => ({
       id: newFieldId(),
-      name: fname,
+      name: f.label,
       value: "",
     }));
 
@@ -128,7 +131,9 @@ export default function AddProjectModal({ fileId, onClose }: AddProjectModalProp
                   }`}
                 >
                   <p className="font-medium text-foreground">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.fields.length} fields</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.fields.filter((f) => f.type !== "divider" && f.type !== "heading").length} fields
+                  </p>
                 </button>
               ))}
             </div>
@@ -137,8 +142,16 @@ export default function AddProjectModal({ fileId, onClose }: AddProjectModalProp
           {selectedTmpl && (
             <div className="bg-primary/5 border border-primary/10 rounded-lg px-4 py-3 text-sm text-primary space-y-1">
               <p>
-                {selectedTmpl.fields.length} fields will be added: {selectedTmpl.fields.slice(0, 3).join(", ")}
-                {selectedTmpl.fields.length > 3 && ` and ${selectedTmpl.fields.length - 3} more`}.
+                {selectedTmpl.fields.filter((f) => f.type !== "divider" && f.type !== "heading").length} fields will be
+                added:{" "}
+                {selectedTmpl.fields
+                  .filter((f) => f.type !== "divider" && f.type !== "heading")
+                  .slice(0, 3)
+                  .map((f) => f.label)
+                  .join(", ")}
+                {selectedTmpl.fields.filter((f) => f.type !== "divider" && f.type !== "heading").length > 3 &&
+                  ` and ${selectedTmpl.fields.filter((f) => f.type !== "divider" && f.type !== "heading").length - 3} more`}
+                .
               </p>
               {selectedTmpl.folders.length > 0 && (
                 <p>{selectedTmpl.folders.length} folders will be created: {selectedTmpl.folders.map((f) => f.name).join(", ")}.</p>

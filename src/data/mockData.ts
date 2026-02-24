@@ -69,11 +69,41 @@ export interface TemplateFolderDef {
   type: Folder["type"];
 }
 
+export type FormFieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "email"
+  | "phone"
+  | "date"
+  | "checkbox"
+  | "radio"
+  | "select"
+  | "signature"
+  | "divider"
+  | "heading"
+  | "terms";
+
+export interface TemplateField {
+  id: string;
+  type: FormFieldType;
+  label: string;
+  placeholder?: string;
+  required: boolean;
+  options?: string[];
+  termsText?: string;
+  displayOrder: number;
+}
+
 export interface Template {
   id: string;
   name: string;
-  fields: string[];
+  description?: string;
+  fields: TemplateField[];
   folders: TemplateFolderDef[];
+  isShareable: boolean;
+  shareToken?: string;
+  shareCode?: string;
 }
 
 /** Initial state for new users: no files, no templates. */

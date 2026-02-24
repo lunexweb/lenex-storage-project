@@ -4,6 +4,7 @@ import { LayoutDashboard, FolderOpen, FileText, Settings, ChevronLeft, ChevronRi
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
+import { useData } from "@/context/DataContext";
 
 const LG_BREAKPOINT = 1024;
 
@@ -30,13 +31,37 @@ const navItems = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("lunex-sidebar") === "true");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendingFormCount, setPendingFormCount] = useState(0);
   const isLg = useIsLg();
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { profile } = useSettings();
+  const { templates, getFormSubmissions } = useData();
   const displayName = profile.businessNameOrUserName?.trim() || user?.name || "";
   const initial = displayName.charAt(0)?.toUpperCase() || "U";
+
+  useEffect(() => {
+    const shareable = templates.filter((t) => t.isShareable);
+    if (!shareable.length) {
+      setPendingFormCount(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      let total = 0;
+      for (const t of shareable) {
+        try {
+          const list = await getFormSubmissions(t.id);
+          total += list.filter((s) => s.status === "pending").length;
+        } catch {
+          // ignore
+        }
+      }
+      if (!cancelled) setPendingFormCount(total);
+    })();
+    return () => { cancelled = true; };
+  }, [templates, getFormSubmissions]);
 
   const handleLogout = () => {
     logout();
@@ -124,11 +149,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const active = isActive(item.path);
             const showLabel = !isLg || !collapsed;
+            const isTemplates = item.path === "/templates";
             return (
               <NavLink
                 key={item.label}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium min-h-[44px] lg:min-h-0 ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium min-h-[44px] lg:min-h-0 relative ${
                   active
                     ? "bg-navy-light text-gold"
                     : "text-navy-foreground hover:bg-navy-light hover:text-white"
@@ -136,6 +162,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 <item.icon className="h-5 w-5 shrink-0" />
                 {showLabel && <span className="transition-opacity duration-200">{item.label}</span>}
+                {isTemplates && pendingFormCount > 0 && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-gold text-gold-foreground text-xs font-bold">
+                    {pendingFormCount > 99 ? "99+" : pendingFormCount}
+                  </span>
+                )}
               </NavLink>
             );
           })}

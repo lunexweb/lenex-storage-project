@@ -95,7 +95,10 @@ export default function ImportCSVModal({ onClose }: ImportCSVModalProps) {
         setRows(rowsAsObjects);
         setNameColumn(headerRow[0] ?? "");
         const template = templates.find((t) => t.id === selectedTemplateId);
-        const defaultField = template?.fields?.[0] ?? "";
+        const dataFields = (template?.fields ?? []).filter(
+          (f) => f.type !== "divider" && f.type !== "heading"
+        );
+        const defaultField = dataFields[0]?.label ?? "";
         setColumnMappings(
           headerRow.map((col) => ({
             spreadsheetCol: col,
@@ -337,13 +340,21 @@ export default function ImportCSVModal({ onClose }: ImportCSVModalProps) {
                     {templates.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
-                        {t.fields?.length ? ` (${t.fields.length} fields)` : ""}
+                        {t.fields?.filter((f) => f.type !== "divider" && f.type !== "heading").length
+                          ? ` (${t.fields.filter((f) => f.type !== "divider" && f.type !== "heading").length} fields)`
+                          : ""}
                       </option>
                     ))}
                   </select>
                   {selectedTemplate && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      Fields in this template: {selectedTemplate.fields?.length ? selectedTemplate.fields.join(", ") : "None"}
+                      Fields in this template:{" "}
+                      {selectedTemplate.fields?.filter((f) => f.type !== "divider" && f.type !== "heading").length
+                        ? selectedTemplate.fields
+                            .filter((f) => f.type !== "divider" && f.type !== "heading")
+                            .map((f) => f.label)
+                            .join(", ")
+                        : "None"}
                     </p>
                   )}
                   <Button
@@ -460,11 +471,13 @@ export default function ImportCSVModal({ onClose }: ImportCSVModalProps) {
                             className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm disabled:opacity-60"
                           >
                             <option value="">— Don’t import</option>
-                            {selectedTemplate.fields.map((f) => (
-                              <option key={f} value={f}>
-                                {f}
-                              </option>
-                            ))}
+                            {selectedTemplate.fields
+                              .filter((f) => f.type !== "divider" && f.type !== "heading")
+                              .map((f) => (
+                                <option key={f.id} value={f.label}>
+                                  {f.label}
+                                </option>
+                              ))}
                           </select>
                         </td>
                         <td className="px-4 py-3">

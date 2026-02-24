@@ -16,6 +16,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import ClientPortal from "@/pages/ClientPortal";
 import UploadRequestPage from "@/pages/UploadRequestPage";
 import ViewSharePage from "@/pages/ViewSharePage";
+import FormPage from "@/pages/FormPage";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
@@ -78,6 +79,7 @@ export default function App() {
               <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                 <Routes>
                   <Route path="/portal" element={<ClientPortal />} />
+                  <Route path="/form" element={<FormPage />} />
                   <Route path="/request" element={<UploadRequestPage />} />
                   <Route path="/view" element={<ViewSharePage />} />
                   <Route path="/privacy" element={<PrivacyPage />} />

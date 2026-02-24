@@ -6,6 +6,7 @@ import {
   Folder,
   FolderFile,
   Template,
+  TemplateField,
   TemplateFolderDef,
   NoteEntry,
   initialFiles,
@@ -24,6 +25,18 @@ export interface ActivityEntry {
   fileId: string;
   time: string;
   createdAt: string;
+}
+
+export interface FormSubmissionRow {
+  id: string;
+  template_id: string;
+  submitter_name: string | null;
+  submitter_email: string | null;
+  submitted_at: string;
+  field_values: Record<string, string>;
+  status: "pending" | "imported" | "rejected";
+  client_file_id: string | null;
+  project_id: string | null;
 }
 
 interface DataContextType {
@@ -57,6 +70,9 @@ interface DataContextType {
   addTemplate: (template: Template) => void;
   updateTemplate: (id: string, updates: Partial<Template>) => void;
   deleteTemplate: (id: string) => void;
+  generateFormShare: (templateId: string) => Promise<{ token: string; code: string } | undefined>;
+  getFormSubmissions: (templateId: string) => Promise<FormSubmissionRow[]>;
+  importFormSubmission: (submissionId: string, fileId: string, projectId: string) => Promise<void>;
   nextProjectId: () => string;
   recordActivity: (action: string, target: string, fileId: string) => void;
   /** Returns a new signed URL for the given storage path, or null on failure. */
@@ -160,8 +176,36 @@ function rowToClientFile(r: Record<string, unknown>, projects: Project[]): Clien
   };
 }
 
-function rowToTemplate(r: Record<string, unknown>, fields: string[], folders: TemplateFolderDef[]): Template {
-  return { id: String(r.id), name: String(r.name ?? ""), fields, folders };
+function rowToTemplateField(r: Record<string, unknown>, displayOrder: number): TemplateField {
+  const type = (r.field_type as TemplateField["type"]) ?? "text";
+  const options = r.options != null ? (Array.isArray(r.options) ? (r.options as string[]) : []) : undefined;
+  return {
+    id: String(r.id),
+    type,
+    label: String(r.name ?? ""),
+    placeholder: r.placeholder != null ? String(r.placeholder) : undefined,
+    required: Boolean(r.required),
+    options: options?.length ? options : undefined,
+    termsText: r.terms_text != null ? String(r.terms_text) : undefined,
+    displayOrder,
+  };
+}
+
+function rowToTemplate(
+  r: Record<string, unknown>,
+  fields: TemplateField[],
+  folders: TemplateFolderDef[]
+): Template {
+  return {
+    id: String(r.id),
+    name: String(r.name ?? ""),
+    description: r.description != null ? String(r.description) : undefined,
+    fields,
+    folders,
+    isShareable: Boolean(r.is_shareable),
+    shareToken: r.share_token != null ? String(r.share_token) : undefined,
+    shareCode: r.share_code != null ? String(r.share_code) : undefined,
+  };
 }
 
 function rowToActivity(r: Record<string, unknown>): ActivityEntry {
@@ -260,12 +304,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setFiles(filesList);
 
       const tmplRows = (templatesRes.data ?? []) as Record<string, unknown>[];
-      const tfByTmpl = new Map<string, string[]>();
-      ((templateFieldsRes.data ?? []) as Record<string, unknown>[]).forEach((r) => {
-        const tid = String(r.template_id);
-        if (!tfByTmpl.has(tid)) tfByTmpl.set(tid, []);
-        tfByTmpl.get(tid)!.push(String(r.name ?? ""));
-      });
+      const tfRows = ((templateFieldsRes.data ?? []) as Record<string, unknown>[]).map((r) => ({
+        ...r,
+        display_order: typeof r.display_order === "number" ? r.display_order : 0,
+      }));
+      const tfByTmpl = new Map<string, TemplateField[]>();
+      tfRows
+        .sort((a, b) => (a.display_order as number) - (b.display_order as number))
+        .forEach((r) => {
+          const tid = String(r.template_id);
+          if (!tfByTmpl.has(tid)) tfByTmpl.set(tid, []);
+          const order = typeof r.display_order === "number" ? r.display_order : tfByTmpl.get(tid)!.length;
+          tfByTmpl.get(tid)!.push(rowToTemplateField(r, order));
+        });
       const tfoByTmpl = new Map<string, TemplateFolderDef[]>();
       ((templateFoldersRes.data ?? []) as Record<string, unknown>[]).forEach((r) => {
         const tid = String(r.template_id);
@@ -1066,16 +1117,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
         typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
           ? crypto.randomUUID()
           : `tmpl-${Date.now()}`;
-      const newTemplate: Template = { ...template, id };
+      const newTemplate: Template = {
+        ...template,
+        id,
+        isShareable: template.isShareable ?? false,
+        shareToken: template.shareToken,
+        shareCode: template.shareCode,
+      };
       setTemplates((prev) => [...prev, newTemplate]);
       return runAndRefetch(async () => {
         const uid = await getUserId();
-        const { error: tErr } = await supabase.from("templates").insert({ id, user_id: uid, name: template.name });
+        const { error: tErr } = await supabase.from("templates").insert({
+          id,
+          user_id: uid,
+          name: template.name,
+          description: template.description ?? null,
+          is_shareable: newTemplate.isShareable,
+          share_token: newTemplate.shareToken ?? null,
+          share_code: newTemplate.shareCode ?? null,
+        });
         if (tErr) throw tErr;
         for (let i = 0; i < template.fields.length; i++) {
-          const name = template.fields[i];
-          if (!name?.trim()) continue;
-          await supabase.from("template_fields").insert({ template_id: id, name: name.trim(), display_order: i });
+          const f = template.fields[i];
+          await supabase.from("template_fields").insert({
+            id: f.id,
+            template_id: id,
+            name: f.label,
+            display_order: f.displayOrder,
+            field_type: f.type,
+            placeholder: f.placeholder ?? null,
+            required: f.required,
+            options: f.options?.length ? f.options : null,
+            terms_text: f.termsText ?? null,
+          });
         }
         for (let i = 0; i < template.folders.length; i++) {
           const fo = template.folders[i];
@@ -1093,8 +1167,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         prev.map((t) => (t.id !== id ? t : { ...t, ...updates }))
       );
       return runAndRefetch(async () => {
-        if (updates.name !== undefined) {
-          const { error } = await supabase.from("templates").update({ name: updates.name }).eq("id", id);
+        const templateRow: Record<string, unknown> = {};
+        if (updates.name !== undefined) templateRow.name = updates.name;
+        if (updates.description !== undefined) templateRow.description = updates.description;
+        if (updates.isShareable !== undefined) templateRow.is_shareable = updates.isShareable;
+        if (updates.shareToken !== undefined) templateRow.share_token = updates.shareToken;
+        if (updates.shareCode !== undefined) templateRow.share_code = updates.shareCode;
+        if (Object.keys(templateRow).length > 0) {
+          const { error } = await supabase.from("templates").update(templateRow).eq("id", id);
           if (error) throw error;
         }
         if (updates.fields !== undefined || updates.folders !== undefined) {
@@ -1103,9 +1183,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const fields = updates.fields ?? (templates.find((t) => t.id === id)?.fields ?? []);
           const folders = updates.folders ?? (templates.find((t) => t.id === id)?.folders ?? []);
           for (let i = 0; i < fields.length; i++) {
-            const name = fields[i];
-            if (!name?.trim()) continue;
-            await supabase.from("template_fields").insert({ template_id: id, name: name.trim(), display_order: i });
+            const f = fields[i];
+            await supabase.from("template_fields").insert({
+              id: f.id,
+              template_id: id,
+              name: f.label,
+              display_order: f.displayOrder,
+              field_type: f.type,
+              placeholder: f.placeholder ?? null,
+              required: f.required,
+              options: f.options?.length ? f.options : null,
+              terms_text: f.termsText ?? null,
+            });
           }
           for (let i = 0; i < folders.length; i++) {
             const fo = folders[i];
@@ -1129,6 +1218,65 @@ export function DataProvider({ children }: { children: ReactNode }) {
       });
     },
     [runAndRefetch, templates, recordActivity]
+  );
+
+  const generateFormShare = useCallback(
+    async (templateId: string): Promise<{ token: string; code: string } | undefined> => {
+      try {
+        const token =
+          typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `form-${Date.now()}`;
+        const code = `FORM-${Math.floor(1000 + Math.random() * 9000)}`;
+        const { error } = await supabase
+          .from("templates")
+          .update({ is_shareable: true, share_token: token, share_code: code })
+          .eq("id", templateId);
+        if (error) throw error;
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.id !== templateId ? t : { ...t, isShareable: true, shareToken: token, shareCode: code }
+          )
+        );
+        return { token, code };
+      } catch (err) {
+        toast.error(mapSupabaseError(err));
+        return undefined;
+      }
+    },
+    []
+  );
+
+  const getFormSubmissions = useCallback(async (templateId: string): Promise<FormSubmissionRow[]> => {
+    const { data, error } = await supabase
+      .from("form_submissions")
+      .select("*")
+      .eq("template_id", templateId)
+      .order("submitted_at", { ascending: false });
+    if (error) throw error;
+    const rows = (data ?? []) as Record<string, unknown>[];
+    return rows.map((r) => ({
+      id: String(r.id),
+      template_id: String(r.template_id),
+      submitter_name: r.submitter_name != null ? String(r.submitter_name) : null,
+      submitter_email: r.submitter_email != null ? String(r.submitter_email) : null,
+      submitted_at: String(r.submitted_at ?? ""),
+      field_values: typeof r.field_values === "object" && r.field_values != null ? (r.field_values as Record<string, string>) : {},
+      status: (r.status as FormSubmissionRow["status"]) ?? "pending",
+      client_file_id: r.client_file_id != null ? String(r.client_file_id) : null,
+      project_id: r.project_id != null ? String(r.project_id) : null,
+    }));
+  }, []);
+
+  const importFormSubmission = useCallback(
+    async (submissionId: string, fileId: string, projectId: string): Promise<void> => {
+      const { error } = await supabase
+        .from("form_submissions")
+        .update({ status: "imported", client_file_id: fileId, project_id: projectId })
+        .eq("id", submissionId);
+      if (error) throw error;
+    },
+    []
   );
 
   const value: DataContextType = {
@@ -1160,6 +1308,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addTemplate,
     updateTemplate,
     deleteTemplate,
+    generateFormShare,
+    getFormSubmissions,
+    importFormSubmission,
     nextProjectId,
     recordActivity,
     refreshFileUrl,

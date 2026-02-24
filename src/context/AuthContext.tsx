@@ -66,6 +66,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [syncSession]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleBeforeUnload = () => {
+      // Fire-and-forget sign-out when the user closes the tab/window.
+      void supabase.auth.signOut();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   const login = useCallback(async (email: string, password: string, _name?: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
