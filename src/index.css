@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 220 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 15%;
+    --primary: 213 67% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 220 30% 15%;
+    --muted: 215 20% 94%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 215 20% 94%;
+    --accent-foreground: 220 30% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 213 67% 32%;
+    --radius: 0.5rem;
+
+    --gold: 38 92% 50%;
+    --gold-foreground: 0 0% 100%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 90% 44%;
+    --warning-foreground: 0 0% 100%;
+    --completed: 215 16% 65%;
+    --completed-foreground: 0 0% 100%;
+    --navy: 216 63% 10%;
+    --navy-foreground: 215 20% 78%;
+    --navy-light: 216 40% 18%;
+
+    --sidebar-background: 216 63% 10%;
+    --sidebar-foreground: 215 20% 78%;
+    --sidebar-primary: 38 92% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 216 40% 18%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 216 40% 18%;
+    --sidebar-ring: 213 67% 32%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "DM Sans", system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gold { color: hsl(var(--gold)); }
+  .bg-gold { background-color: hsl(var(--gold)); }
+  .text-success { color: hsl(var(--success)); }
+  .bg-success { background-color: hsl(var(--success)); }
+  .text-warning { color: hsl(var(--warning)); }
+  .bg-warning { background-color: hsl(var(--warning)); }
+  .text-completed { color: hsl(var(--completed)); }
+  .bg-completed { background-color: hsl(var(--completed)); }
+  .bg-navy { background-color: hsl(var(--navy)); }
+  .text-navy { color: hsl(var(--navy)); }
+  .bg-navy-light { background-color: hsl(var(--navy-light)); }
+}
