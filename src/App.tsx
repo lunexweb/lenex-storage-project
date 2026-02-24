@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import AppLayout from "@/components/layout/AppLayout";
+import InstallPrompt from "@/components/InstallPrompt";
 import DashboardPage from "@/pages/DashboardPage";
 import FilesPage from "@/pages/FilesPage";
 import FilePage from "@/pages/FilePage";
@@ -92,6 +93,7 @@ export default function App() {
             </DataProvider>
           </SettingsProvider>
         </AuthProvider>
+        <InstallPrompt />
       </TooltipProvider>
     </QueryClientProvider>
   );

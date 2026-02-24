@@ -1,0 +1,28 @@
+{
+  "name": "Lunex — Every client. Perfectly organised.",
+  "short_name": "Lunex",
+  "description": "Find any client file in seconds. The digital client management system for South African professionals.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A1628",
+  "theme_color": "#0A1628",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en-ZA",
+  "scope": "/"
+}
+
