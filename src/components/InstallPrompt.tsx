@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { X, Download } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -6,12 +7,27 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+const INSTALL_PROMPT_PATHS = ["/login", "/signup", "/"] as const;
+
+function isRunningAsInstalledPWA(): boolean {
+  if (typeof window === "undefined") return true;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as { standalone?: boolean }).standalone === true
+  );
+}
+
 export default function InstallPrompt() {
+  const { pathname } = useLocation();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
+  const isAllowedPath = INSTALL_PROMPT_PATHS.includes(pathname as (typeof INSTALL_PROMPT_PATHS)[number]);
+  const isStandalone = isRunningAsInstalledPWA();
+
   useEffect(() => {
+    if (!isAllowedPath || isStandalone) return;
     const alreadyDismissed = localStorage.getItem("lunex-install-dismissed");
     if (alreadyDismissed) return;
 
@@ -23,7 +39,7 @@ export default function InstallPrompt() {
 
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
+  }, [isAllowedPath, isStandalone]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
@@ -41,7 +57,7 @@ export default function InstallPrompt() {
     localStorage.setItem("lunex-install-dismissed", "true");
   };
 
-  if (!showPrompt || dismissed) return null;
+  if (!isAllowedPath || isStandalone || !showPrompt || dismissed) return null;
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-80">
